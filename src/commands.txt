@@ -1,0 +1,7 @@
+nohup python -u pretraining.py --data cic --filename traindata -v mknn_k40_euclidean--tensorboard --id 1 --niter 50000 --lr 0.1 --step 20000 > ../log/pretrain_cic_id1.log 2>&1 &
+
+python extract_feature.py --data cic --filename traindata -v mknn_k40_euclidean --net checkpoint_4.pth.tar --features pretrained
+
+python copyGraph.py --data cic -v mknn_k40_euclidean --graph graphdata.mat --features pretrained.pkl --out pretrained
+
+nohup python -u DCC.py --data cic --net checkpoint_4.pth.tar -v mknn_k40_euclidean --filename traindata --pretrain_fname pretrained --tensorboard --id 1 > dcc_log_id1.log 2>&1 &
