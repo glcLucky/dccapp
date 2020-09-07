@@ -234,6 +234,8 @@ def train(trainloader, net, optimizer, criterion1, criterion2, epoch, use_cuda, 
     net.train()
 
     for batch_idx, (inputs, pairweights, sampweights, pairs, index) in enumerate(trainloader):
+        if batch_idx % 20 == 0:
+            print('\n epoch: {}, batch: {}'.format(epoch, batch_idx))
         inputs = torch.squeeze(inputs,0)
         pairweights = torch.squeeze(pairweights)
         sampweights = torch.squeeze(sampweights)

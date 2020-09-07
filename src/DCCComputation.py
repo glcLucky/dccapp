@@ -60,6 +60,7 @@ def computeHyperParams(pairs, Z):
     epsilon = np.linalg.norm(Z[pairs[:, 0].astype(int)] - Z[pairs[:, 1].astype(int)], axis=1)
     epsilon = np.sort(epsilon)
     # if largest is noise then just consider as noise
+    # import ipdb; ipdb.set_trace()
     if epsilon[-1] / np.sqrt(cfg.DIM) < cfg.RCC.NOISE_THRESHOLD:
         epsilon = np.asarray([cfg.RCC.NOISE_THRESHOLD])
     else:
@@ -75,7 +76,7 @@ def computeHyperParams(pairs, Z):
     _delta1 = float(np.average(np.linalg.norm(Z - np.average(Z, axis=0)[np.newaxis, :], axis=1) ** 2))  # the mean of the distance of each u to the mean of U
     _sigma1 = float(max(cfg.RCC.GNC_DATA_START_POINT, 16 * _delta1))
 
-    print('The endpoints are Delta1: {:.3f}, Delta2: {:.3f}'.format(_delta1, _delta2))
+    print('The endpoints are Delta: {:.3f}, Delta1: {:.3f}, Delta2: {:.3f}'.format(_delta, _delta1, _delta2))
 
     lmdb = np.ones(numpairs, dtype=np.float32)
     lmdb_data = np.ones(numsamples, dtype=np.float32)

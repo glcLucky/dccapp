@@ -99,5 +99,5 @@ docs/*
 notebooks/*
 !notebooks/final_notebooks/
 /notebooks/final_notebooks/.ipynb_checkpoints/*
-!notebooks/dev_notebooks/
-notebooks/dev_notebooks/.ipynb_checkpoints/*
+#!notebooks/dev_notebooks/
+#notebooks/dev_notebooks/.ipynb_checkpoints/*

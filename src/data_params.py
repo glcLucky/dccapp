@@ -1,8 +1,8 @@
 from easydict import EasyDict as edict
 from extractSDAE import extractSDAE
-from extractconvSDAE import extractconvSDAE
+from extractconvSDAE import extractconvSDAE, extractconvSDAEcic
 from SDAE import SDAE
-from convSDAE import convSDAE
+from convSDAE import convSDAE, convSDAEcic
 
 easy = edict()
 easy.name = 'easy'
@@ -12,6 +12,9 @@ easy.dim = [2]
 # TODO port other dataset's parameters to here
 def extract_convsdae_mnist(slope=0.0):
     return extractconvSDAE(dim=[1, 50, 50, 50, 10], output_padding=[0, 1, 0], numpen=4, slope=slope)
+
+def extract_convsdae_cic(slope=0.0):
+    return extractconvSDAEcic(dim=[1, 100, 80, 50, 10], output_padding=[1,1,1], numpen=4, dropout=dropout, slope=slope)
 
 
 def extract_convsdae_coil100(slope=0.0):
@@ -89,6 +92,8 @@ def sdae_easy(dropout=0.2, slope=0.0, dim=1):
 def convsdae_mnist(dropout=0.2, slope=0.0):
     return convSDAE(dim=[1, 50, 50, 50, 10], output_padding=[0, 1, 0], numpen=4, dropout=dropout, slope=slope)
 
+def convsdae_cic(dropout=0.2, slope=0.0):
+    return convSDAEcic(dim=[1, 100, 80, 50, 10], output_padding=[1,1,1], numpen=4, dropout=dropout, slope=slope)
 
 def convsdae_coil100(dropout=0.2, slope=0.0):
     return convSDAE(dim=[3, 50, 50, 50, 50, 50, 10], output_padding=[0, 1, 1, 1, 1], numpen=4, dropout=dropout,
@@ -121,6 +126,8 @@ def load_predefined_net(args, params):
         net = sdae_yale(dropout=params['dropout'], slope=params['reluslope'], dim=args.dim)
     elif args.db == 'cmnist':
         net = convsdae_mnist(dropout=params['dropout'], slope=params['reluslope'])
+    elif args.db == 'ccic':
+        net = convsdae_cic(dropout=params['dropout'], slope=params['reluslope'])
     elif args.db == 'ccoil100':
         net = convsdae_coil100(dropout=params['dropout'], slope=params['reluslope'])
     elif args.db == 'cytf':
