@@ -1,0 +1,297 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+import datetime
+import click
+import pytz
+import logging.config
+import logging
+
+from dcits.src.pipeline import Pipeline
+
+def get_week_next_day():
+    dict_num2week = {0: "Monday",
+                     1: "Tuesday",
+                     2: "Wednesday",
+                     3: "Thursday",
+                     4: "Friday",
+                     5: "Saturday",
+                     6: "Sunday"}
+    return dict_num2week[(datetime.datetime.now(tz=pytz.timezone('Asia/Tokyo')) + datetime.timedelta(days=1)).weekday()]
+WEEKDAY = get_week_next_day()
+# WEEKDAY = "Monday"
+logger = logging.getLogger(__name__)
+
+DEBUG_LEVEL_MAPPING = {
+    'ERROR': 0,
+    'WARN': 1,
+    'WARNING': 1,
+    'INFO': 2,
+    'DEBUG': 3,
+}
+
+# Levels for console handler
+VERBOSITY_LEVELS = {
+    0: 'ERROR',
+    1: 'WARN',
+    2: 'INFO',
+    3: 'DEBUG',
+}
+
+
+def setup_logger(
+    logfp="debug.log",
+    console_verbosity_level=0,
+    write_to_log=False,
+    ):
+    """Setup the logger. Adds the console handler and (optionally) the file
+    handler to the logger.
+
+    Args:
+        **logfp** (str): Optional. Default 'debug.log'. Filepath to the output
+        logfile including the suffix.
+
+        **console_verbosity_level** (int): Optional. Default 0. ::
+
+            0 => ERROR, CRITICAL. Default.
+            1 => WARN, ERROR, CRITICAL.
+            2 => INFO, WARN, ERROR, CRITICAL.
+            3 => DEBUG, INFO, WARN, ERROR, CRITICAL.
+
+        **write_to_log** (bool). Optional. Default False. Write the debug log
+        messages to the logfile.
+    """
+    vlevel = VERBOSITY_LEVELS[console_verbosity_level]
+    fmt = "[%(asctime)s] %(name)s;%(filename)s:%(lineno)s;%(funcName)s;"
+    fmt += "%(levelname)s;%(message)s"
+    config = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'simple': {
+                'format': fmt,
+                'datefmt': "%Y-%m-%d %H:%M:%S"
+            }
+        },
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+                'level': vlevel,
+                'formatter': 'simple',
+                'stream': 'ext://sys.stdout'
+            }
+        },
+        'root': {
+            'level': vlevel,
+            'handlers': ['console']
+        }
+    }
+    if write_to_log:
+        config['handlers']['file'] = {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'level': vlevel,
+            'formatter': 'simple',
+            'filename': logfp,
+            'mode': 'w',
+            'maxBytes': 10485760,
+            'backupCount': 5,
+            'encoding': 'utf8'
+        }
+        config['root']['handlers'].append('file')
+    logging.config.dictConfig(config)
+
+
+class DebugLevel(click.ParamType):
+    name = 'DEBUG_LEVEL'
+
+    def convert(self, value, param, ctx):
+        if not value.upper() in DEBUG_LEVEL_MAPPING.keys():
+            self.fail(
+                "{0} is not a valid debug level.".format(value),
+                param,
+                ctx,
+            )
+        return DEBUG_LEVEL_MAPPING[value.upper()]
+
+
+# -----------------------------------------------------------------------------
+# main
+# -----------------------------------------------------------------------------
+@click.group(context_settings=dict(max_content_width=100))
+@click.option(
+    '--debug', '-d',
+    type=DebugLevel(),
+    default='debug',
+    show_default=True,
+    help="The wanted debug level. (debug, info, warning or error)",
+)
+@click.option(
+    '--s3-src-bucket',
+    default='docomoai-prediction-data-prod',
+    help="s3 source bucket"
+)
+@click.option(
+    '--s3-tgt-bucket',
+    default='docomoai-prioritization-prod-test',
+    help="s3 target bucket"
+)
+@click.option(
+    '--s3-delivery-bucket',
+    default='docomoai-prioritization-delivery-test',
+    help="s3 delivery bucket"
+)
+@click.option(
+    '--batch-size', 
+    default=1000,
+    type=int,
+    help="the number of cells for each batch")
+@click.option(
+    '--n-sample-batch', 
+    default=-1,
+    type=int,
+    help="the number of batch file, defalut=-1, meaning all batch files")
+@click.option(
+    '--max-n-processes', 
+    default=25,
+    type=int,
+    help="the number of cores for using multiprocessing")
+@click.option(
+    '--maxtasksperchild', 
+    default=1,
+    type=int,
+    help="the max number of tasks for each child process")
+@click.option(
+    '--kernel-name',
+    default='timeseries',
+    help="the name of jupyter notebook kernel"
+)
+@click.option(
+    '--forecast-table-name',
+    default='raw_clean_data',
+    help="the name of table using to forecast"
+)
+@click.option(
+    '--write-to-log',
+    is_flag=True,
+    default=False,
+    help="save log to file.",
+)
+@click.option(
+    '--specified-date',
+    default='',
+    help="provide the specified data to forecast"
+)
+@click.option(
+    '--specified-weekday',
+    default='',
+    help="provide the specified weekday to forecast"
+)
+@click.option(
+    '--for-test',
+    is_flag=True,
+    show_default=False,
+    help="forecast only for test",
+)
+@click.option(
+    '--delete-existed-before-run',
+    is_flag=True,
+    default=True,
+    help="deleter all existed objects in s3 for current date",
+)
+@click.pass_context
+def main(
+    ctx,
+    debug,
+    s3_src_bucket,
+    s3_tgt_bucket,
+    s3_delivery_bucket,
+    batch_size,
+    n_sample_batch,
+    max_n_processes,
+    maxtasksperchild,
+    kernel_name,
+    forecast_table_name,
+    write_to_log,
+    specified_date,
+    specified_weekday,
+    for_test,
+    delete_existed_before_run):
+    setup_logger(
+        logfp="writer.log",
+        console_verbosity_level=debug,
+        write_to_log=write_to_log)
+    if len(specified_weekday) > 0:
+        weekday = specified_weekday
+    else:
+        weekday = WEEKDAY
+
+    required_kwargs = {
+        'debug': debug,
+        's3_src_bucket': s3_src_bucket,
+        's3_tgt_bucket': s3_tgt_bucket,
+        's3_delivery_bucket': s3_delivery_bucket,
+        'batch_size': batch_size,
+        'n_sample_batch': n_sample_batch,
+        'maxtasksperchild': maxtasksperchild,
+        'max_n_processes': max_n_processes,
+        'kernel_name': kernel_name,
+        'forecast_table_name': forecast_table_name,
+        'write_to_log': write_to_log,
+        'specified_date': specified_date,
+        'for_test': for_test,
+        'delete_existed_before_run': delete_existed_before_run,
+        'weekday': weekday
+    }
+    print(required_kwargs)
+    ctx.obj = {}
+    ctx.obj['pipeline'] = Pipeline(**required_kwargs)
+
+
+# -----------------------------------------------------------------------------
+# sub command: start-whole-pipeline
+# -----------------------------------------------------------------------------
+@main.command()
+@click.pass_context
+def start_all(
+    ctx,
+):
+    """Start the whole pipeline
+    """
+
+    logger.debug("start all pipelines...")
+    
+    n_batch_files = ctx.obj['pipeline'].start_wirte_to_queue()
+    
+    ctx.obj['pipeline'].start_ts_pipeline()
+
+    ctx.obj['pipeline'].start_dci_pipeline()
+
+    ctx.obj['pipeline'].start_priority_pipeline()
+
+    ctx.obj['pipeline'].start_priority_viz_pipeline()
+
+    logger.debug("End of all pipelines")
+
+
+# -----------------------------------------------------------------------------
+# sub command: start-viz-pipeline
+# -----------------------------------------------------------------------------
+@main.command()
+@click.pass_context
+def start_viz(
+    ctx,
+):
+    """Start the whole pipeline
+    """
+
+    logger.debug("start viz pipelines...")
+
+    ctx.obj['pipeline'].start_priority_pipeline()
+
+    ctx.obj['pipeline'].start_priority_viz_pipeline()
+
+    logger.debug("End of all viz pipelines")
+
+if __name__ == '__main__':
+    main()
+
